@@ -397,10 +397,22 @@ namespace Vub.Etro.IO
             //{
             //    ret = (T)(object)Get1DArray<char>();
             //}
-            //else if (typeof(T) == typeof(byte[]))
-            //{
-            //    ret = (T)(object)Get1DArray<byte>();
-            //}
+            else if (typeof(T) == typeof(byte[]))
+            {
+                int count = ((byte[])(object)data).Length;
+                _dimensions = new int[] { count };
+                _paramType = 1;
+                _vectorData = new byte[count * GetSize(1)];
+                _length = _vectorData.Length; // it is the same length as it is in string because ASCII encoding
+                for (int i = 0; i < count; i++)
+                {
+                    byte n = ((byte[])(object)data)[i];
+
+                    // TODO : check this
+                    Array.Copy(BitConverter.GetBytes(n), 0, _vectorData, i * GetSize(_paramType), GetSize(_paramType));
+                }
+                IsScalar = false;
+            }
             //else if (typeof(T) == typeof(Int16[]))
             //{
             //    ret = (T)(object)Get1DArray<Int16>();
