@@ -67,6 +67,7 @@ namespace Vub.Etro.IO
                     throw new ApplicationException("FileOffset has been set already for parameter " + Name);
             }
         }
+        internal void ResetOffsetInFile() { _offsetInFile = -1; }
 
         protected abstract Int16 GetContentLength();
         protected abstract void WriteContent(BinaryWriter writer);
@@ -176,6 +177,11 @@ namespace Vub.Etro.IO
             return null;
         }
 
+        internal void ResetOffsetInFile() {
+            foreach (Parameter p in _parameters) {
+                p.ResetOffsetInFile();
+            }
+        }
 
         protected override Int16 GetContentLength() { return 0; } // ParameterGroup doesn't have content (NOTE: Parameters are children, not content)
 
@@ -375,6 +381,26 @@ namespace Vub.Etro.IO
                     float f = ((float[])(object)data)[i];
                     Array.Copy(BitConverter.GetBytes(f), 0, _vectorData, i * GetSize(_paramType), GetSize(_paramType));
                 }
+                IsScalar = false;
+            }
+            else if (typeof(T) == typeof(float[,]))
+            {
+                int dim1 = ((float[,])(object)data).GetLength(0);
+                int dim2 = ((float[,])(object)data).GetLength(1);
+                int count = ((float[,])(object)data).Length;
+                _dimensions = new int[] { dim1, dim2 };
+                _paramType = 4;
+                _vectorData = new byte[count * GetSize(4)];
+
+                _length = _vectorData.Length; // it is the same length as it is in string because ASCII encoding
+                int offset = 0;
+                for (int y = 0; y < dim2; y++)
+                    for (int x = 0; x < dim1; x++)
+                    {
+                        float f = ((float[,])(object)data)[x,y];
+                        Array.Copy(BitConverter.GetBytes(f), 0, _vectorData, offset * GetSize(_paramType), GetSize(_paramType));
+                        offset++;
+                    }
                 IsScalar = false;
             }
             else if (typeof(T) == typeof(Int16[]))

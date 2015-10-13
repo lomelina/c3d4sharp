@@ -18,9 +18,9 @@ namespace Vub.Etro.IO
 {
     public class C3dEvent
     {
-        internal C3dEvent(string name) {
-            Label = "";
-            Context = "";
+        public C3dEvent(string label, string context, int frame = -1 /* Current frame */ ) {
+            Label = label;
+            Context = context;
             Description = "";
             Subject = "";
             Frame = 0;
@@ -45,19 +45,19 @@ namespace Vub.Etro.IO
 
     public class C3dWriter
     {
+        private bool _eventsEnabled;
         private string _c3dFile;
         private FileStream _fs = null;
         private BinaryWriter _writer = null;
         private Dictionary<string, ParameterGroup> _nameToGroups;
         private Dictionary<int, ParameterGroup> _idToGroups;
-        private HashSet<Parameter> _allParameters;
         
         private int _dataStartOffset;
         private int _pointFramesOffset;
         
         private int _writePos = 0;
 
-        private C3dEvent [] _events = null;
+        private List<C3dEvent> _events = null;
         
         #region Properties
 
@@ -85,12 +85,12 @@ namespace Vub.Etro.IO
 
         #endregion Properties
 
-        public C3dWriter()
+        public C3dWriter(bool eventsEnabled = false)
         {
+            _eventsEnabled = eventsEnabled;
             _nameToGroups = new Dictionary<string, ParameterGroup>();
             _idToGroups = new Dictionary<int, ParameterGroup>();
             _pointsLabels = new List<string>();
-            _allParameters = new HashSet<Parameter>();
             _header = new C3dHeader();
 
             SetDefaultParametrs();
@@ -102,16 +102,19 @@ namespace Vub.Etro.IO
             }
         }
 
+        private static string GetTempFile(string file){
+            return Path.GetDirectoryName(file) + "/~tmp." + Path.GetFileName(file);
+        }
 
         public bool Open(string c3dFile)
         {
-
+            
             _c3dFile = c3dFile;
             _header.LastSampleNumber = 0;
             try
             {
-                PrepareEvents();
-                _fs = new FileStream(_c3dFile, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+                //PrepareEvents();
+                _fs = new FileStream(_eventsEnabled? GetTempFile(_c3dFile) : _c3dFile, FileMode.OpenOrCreate, FileAccess.ReadWrite);
                 _writer = new BinaryWriter(_fs);
             
                 WriteHeader();
@@ -122,7 +125,7 @@ namespace Vub.Etro.IO
             catch (IOException e)
             {
                 Console.Error.WriteLine("C3dReader.Open(\"" + c3dFile + "\"): " + e.Message);
-                return false;
+                throw new ApplicationException("C3dReader.Open(\"" + c3dFile + "\"): " + e.Message);
             }
             return true;
         }
@@ -143,14 +146,54 @@ namespace Vub.Etro.IO
             _header.DataStart = (short)p.GetData<Int16>();
             _writer.Seek(0, 0);
             _writer.Write(_header.GetRawData());
-
             _writer.Seek((int)position, 0); // to be sure, put pointer to the end
             _writer.Close();
             _writer = null;
             _fs.Close();
             _fs = null;
 
+            if (_eventsEnabled) {
+                RewriteWithEvents();
+                RemoveTempFile();
+            }
             return true;
+        }
+
+        private void RemoveTempFile()
+        {
+            File.Delete(GetTempFile(_c3dFile));
+        }
+
+        private void RewriteWithEvents() 
+        {
+            WriteEventContexts();
+            WriteEvents();
+
+            // reset parameters' offsets to enable writing to new file
+            foreach (int id in _idToGroups.Keys)
+            {
+                _idToGroups[id].ResetOffsetInFile();
+            }
+            
+            _eventsEnabled = false;
+            C3dReader reader = new C3dReader();
+            reader.Open(GetTempFile(_c3dFile));
+            Open(_c3dFile);
+
+            for (int i = 0; i < reader.FramesCount; i++) 
+            {
+                Vector3 [] points = reader.ReadFrame();
+                if(reader.IsFloat) {
+                    this.WriteFloatFrame(points);
+                }
+                else if (reader.IsInterger) { 
+                    this.WriteIntFrame(points);
+                }
+            }
+
+
+            reader.Close();
+            this.Close();
         }
 
         public void UpdateParameter(Parameter p)
@@ -304,58 +347,50 @@ namespace Vub.Etro.IO
             }
         }
 
-        public void InitializeEventContext(
-            string [] events, 
-            string [] contexts, 
-            string [] descriptions = null, 
-            Int16 [] icon_ids = null, 
-            Int16 [] colours = null) 
+        public void AddEvent(C3dEvent e) {
+            if (_events == null){
+                _events = new List<C3dEvent>();
+            }
+
+            if (e.Frame == 0) {
+                e.Frame = _header.LastSampleNumber;
+            }
+            _events.Add(e);
+        }
+
+
+
+        public void WriteEventContexts() 
         {
-            if (descriptions == null)
-                descriptions = Enumerable.Repeat(string.Empty, contexts.Length).ToArray();
-            if (icon_ids == null)
-                icon_ids = Enumerable.Repeat<Int16>(0, contexts.Length).ToArray();
-            if (colours == null)
-                colours = Enumerable.Repeat<Int16>(0, contexts.Length).ToArray();
+            if(_events == null) return;
+            IEnumerable<string> contexts = _events.Select(x=>x.Context).Distinct();
+            string[] descs = new string[contexts.Count<string>()];
+            for (int i = 0; i < descs.Length; i++) descs[i] = "";
 
-            if (contexts.Length == 0) { throw new ArgumentException("Event contexts array cannot be null. There has to be at least one context that will be asigned to events."); }
-            if (contexts.Length != descriptions.Length) { throw new ArgumentException("The number of DESCRIPTIONS has to be equal to number of contexts."); }
-            if (contexts.Length != icon_ids.Length) { throw new ArgumentException("The number of ICON_IDS has to be equal to number of contexts."); }
-            if (contexts.Length != colours.Length) { throw new ArgumentException("The number of COLOURS has to be equal to number of contexts."); }
-
+            Int16[] icon_ids = new Int16[contexts.Count<string>()];
+            Int16[] colours = new Int16[contexts.Count<string>()];
             
+            SetParameter<Int16>("EVENT_CONTEXT:USED", (Int16)contexts.Count<string>());
 
-            SetParameter<Int16>("EVENT_CONTEXT:USED", (Int16)contexts.Length);
+            SetParameter<string[]>("EVENT_CONTEXT:LABELS", contexts.ToArray<string>());
 
-            SetParameter<string[]>("EVENT_CONTEXT:LABELS", contexts);
-
-            SetParameter<string[]>("EVENT_CONTEXT:DESCRIPTIONS", descriptions);
+            SetParameter<string[]>("EVENT_CONTEXT:DESCRIPTIONS", descs);
 
             SetParameter<Int16[]>("EVENT_CONTEXT:ICON_IDS", icon_ids);
 
             SetParameter<Int16[]>("EVENT_CONTEXT:COLOURS", colours);
-
-            // Initialize events
-            _events = new C3dEvent[events.Length];
-            for (int i = 0; i < _events.Length; i++) {
-                _events[i] = new C3dEvent(events[i]);
-            }
         }
 
-        public void UpdateEventTime(int id, string context, int frame) { 
-
-        }
-
-        private void PrepareEvents() {
+        private void WriteEvents() {
             if (_events == null) return;
 
-            string[] labels = new string[_events.Length];
-            string[] contexts = new string[_events.Length];
-            string[] descriptions = new string[_events.Length];
-            string[] subjects = new string[_events.Length];
-            float[] times = new float[_events.Length];
-            Int16[] icon_ids = new Int16[_events.Length];
-            byte[] generic_flags = new byte[_events.Length];
+            string[] labels = new string[_events.Count];
+            string[] contexts = new string[_events.Count];
+            string[] descriptions = new string[_events.Count];
+            string[] subjects = new string[_events.Count];
+            float[,] times = new float[2,_events.Count];
+            Int16[] icon_ids = new Int16[_events.Count];
+            byte[] generic_flags = new byte[_events.Count];
 
             for (int i = 0; i < labels.Length; i++)
             {
@@ -363,9 +398,13 @@ namespace Vub.Etro.IO
                 contexts[i]      = _events[i].Context;
                 descriptions[i]  = _events[i].Description;
                 subjects[i]      = _events[i].Subject;
-                times[i]         = 0.0f;// TODO compute time
                 icon_ids[i]      = _events[i].IconId;
                 generic_flags[i] = _events[i].GenericFlag;
+
+                float t = _events[i].Frame / _header.FrameRate;
+                times[0, i] = ((int)t) / 60; // compute minutes
+                times[1, i] = t % 60;        // seconds and fraction of seconds
+                
             }
 
             SetParameter<Int16>("EVENT:USED", (Int16)contexts.Length);
@@ -373,7 +412,7 @@ namespace Vub.Etro.IO
             SetParameter<string[]>("EVENT:LABELS", labels);
             SetParameter<string[]>("EVENT:DESCRIPTIONS", descriptions);
             SetParameter<string[]>("EVENT:SUBJECTS", subjects);
-            SetParameter<float[]>("EVENT:TIMES", times);
+            SetParameter<float[,]>("EVENT:TIMES", times);
             SetParameter<Int16[]>("EVENT:ICON_IDS", icon_ids);
             SetParameter<byte[]>("EVENT:GENERIC_FLAGS", generic_flags);
         }
