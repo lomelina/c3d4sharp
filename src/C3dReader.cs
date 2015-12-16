@@ -313,7 +313,7 @@ namespace Vub.Etro.IO
                     float data = _reader.ReadSingle();
                     //real world value = (data value - zero offset) * channel scale * general scale
                     allData[variable, rate] =
-                        (data - ((_analogZeroOffset != null && _analogZeroOffset.Length > 0) ? _analogZeroOffset[variable] : 0)) * _analogGenScale * (_analogScale != null && _analogScale.Length > 0 ? _analogScale[variable] : 1);
+                        (data - ((_analogZeroOffset != null && _analogZeroOffset.Length > 0) ? (float)_analogZeroOffset[variable] : 0.0f)) * _analogGenScale * (_analogScale != null && _analogScale.Length > 0 ? (float)_analogScale[variable] : 1.0f);
                 }
             }
             _analogData = new AnalogDataArray(_analogLabels, _analogLabelsToId, allData);
@@ -347,7 +347,7 @@ namespace Vub.Etro.IO
                     float data = _reader.ReadInt16();
                     // real world value = (data value - zero offset) * channel scale * general scale
                     allData[variable, rate] =
-                        (data - ((_analogZeroOffset != null && _analogZeroOffset.Length > 0) ? _analogZeroOffset[variable] : 0)) * _analogGenScale * (_analogScale != null && _analogScale.Length > 0 ? _analogScale[variable] : 1); 
+                        (data - ((_analogZeroOffset != null && _analogZeroOffset.Length > 0) ? (float)_analogZeroOffset[variable] : 0.0f)) * _analogGenScale * (_analogScale != null && _analogScale.Length > 0 ? (float)_analogScale[variable] : 1.0f); 
                 }
             }
             _analogData = new AnalogDataArray(_analogLabels, _analogLabelsToId, allData);
