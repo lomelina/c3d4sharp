@@ -250,7 +250,7 @@ namespace Vub.Etro.IO
             }
 
             if (!_nameToGroups.ContainsKey(elements[0]))
-                throw new ApplicationException("Group " + elements[0] + " deasn't exist.");
+                throw new ApplicationException("Group " + elements[0] + " doesn't exist.");
 
             ParameterGroup grp = _nameToGroups[elements[0]];
 
@@ -259,7 +259,7 @@ namespace Vub.Etro.IO
                 if (p.Name == elements[1])
                     return p.GetData<T>();
             }
-            throw new ApplicationException("Parameter " + elements[1] + " deasn't exist.");
+            throw new ApplicationException("Parameter " + elements[0] +":"+ elements[1] + " doesn't exist.");
         }
 
 
