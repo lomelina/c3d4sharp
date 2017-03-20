@@ -47,10 +47,10 @@ namespace Vub.Etro.IO
         #region Properties
 
         private List<string> _pointsLabels;
-        private Dictionary<string,int> _pointsLabelsToId;
+        private Dictionary<string, int> _pointsLabelsToId;
         internal List<string> _analogLabels;
         internal Dictionary<string, int> _analogLabelsToId;
-            
+
 
         public IList<string> Labels { get { return _pointsLabels.AsReadOnly(); } }
         public IList<string> AnalogLabels { get { return _analogLabels.AsReadOnly(); } }
@@ -62,7 +62,7 @@ namespace Vub.Etro.IO
         //public float[,] AnalogData { get {return _analogData;} }
 
         private AnalogDataArray _analogData = null;
-        public AnalogDataArray AnalogData { get {return _analogData;} }
+        public AnalogDataArray AnalogData { get { return _analogData; } }
         public int AnalogChannels { get { return (int)(_analogRate / _pointRate); } }
 
         public Vector3[] _points = null;
@@ -71,7 +71,8 @@ namespace Vub.Etro.IO
         private int _pointFrames = 0;
         public int FramesCount { get { return _pointFrames; } }
 
-        public int NumberOfPointsInFrame { 
+        public int NumberOfPointsInFrame
+        {
             get { return _pointsNumber; }
             set { _pointsNumber = value; }
         }
@@ -83,7 +84,25 @@ namespace Vub.Etro.IO
         public bool IsInterger { get { return _pointScale >= 0; } }
         public bool IsFloat { get { return _pointScale < 0; } }
 
+        private List<C3dEvent> _events = new List<C3dEvent>();
+        public List<C3dEvent> Events { get { return _events; } }
+
         #endregion
+
+        internal HashSet<Parameter> AllParameters
+        {
+            get { return _allParameters; }
+        }
+
+        public string GetGroupName(Parameter p)
+        {
+
+            if (_idToGroups.ContainsKey(-p.Id))
+            {
+                return _idToGroups[-p.Id].Name;
+            }
+            return "";
+        }
 
         public C3dReader()
         {
@@ -109,6 +128,8 @@ namespace Vub.Etro.IO
                 ReadParameters();
                 ParseRequiredParameters();
 
+                ReadEvents();
+
                 _reader.BaseStream.Seek(_dataStart, 0);
             }
             catch (Exception e)
@@ -121,8 +142,8 @@ namespace Vub.Etro.IO
 
         private void ParseRequiredParameters()
         {
-            string [] labels = GetParameter<string[]>("POINT:LABELS");
-            for (int i = 0; i < labels.Length; i++) 
+            string[] labels = GetParameter<string[]>("POINT:LABELS");
+            for (int i = 0; i < labels.Length; i++)
             {
                 string label = labels[i].TrimEnd(' ');
                 _pointsLabelsToId.Add(label, i);
@@ -139,7 +160,7 @@ namespace Vub.Etro.IO
             _analogScale = GetParameter<float[]>("ANALOG:SCALE");
             _analogGenScale = GetParameter<float>("ANALOG:GEN_SCALE");
             _analogZeroOffset = GetParameter<Int16[]>("ANALOG:OFFSET");
-            
+
             string[] analogLabels = GetParameter<string[]>("ANALOG:LABELS");
             for (int i = 0; i < analogLabels.Length; i++)
             {
@@ -147,7 +168,7 @@ namespace Vub.Etro.IO
                 _analogLabelsToId.Add(label, i);
                 _analogLabels.Insert(i, label);
             }
-            
+
 
         }
 
@@ -347,7 +368,7 @@ namespace Vub.Etro.IO
                     float data = _reader.ReadInt16();
                     // real world value = (data value - zero offset) * channel scale * general scale
                     allData[variable, rate] =
-                        (data - ((_analogZeroOffset != null && _analogZeroOffset.Length > 0) ? (float)_analogZeroOffset[variable] : 0.0f)) * _analogGenScale * (_analogScale != null && _analogScale.Length > 0 ? (float)_analogScale[variable] : 1.0f); 
+                        (data - ((_analogZeroOffset != null && _analogZeroOffset.Length > 0) ? (float)_analogZeroOffset[variable] : 0.0f)) * _analogGenScale * (_analogScale != null && _analogScale.Length > 0 ? (float)_analogScale[variable] : 1.0f);
                 }
             }
             _analogData = new AnalogDataArray(_analogLabels, _analogLabelsToId, allData);
@@ -359,7 +380,8 @@ namespace Vub.Etro.IO
         {
             get
             {
-                if (_points == null) { 
+                if (_points == null)
+                {
                     throw new ApplicationException("You must open file and read freame first");
                 }
                 else if (key < 0 || key >= _points.Length)
@@ -386,6 +408,50 @@ namespace Vub.Etro.IO
             }
         }
 
+
+        // TODO
+        #region read Events
+
+        public void ReadEventContexts()
+        {
+            Int16 contextsCount = GetParameter<Int16>("EVENT_CONTEXT:USED");
+            string[] contexts = GetParameter<string[]>("EVENT_CONTEXT:LABELS");
+            string[] desc = GetParameter<string[]>("EVENT_CONTEXT:DESCRIPTIONS");
+            Int16[] icon_ids = GetParameter<Int16[]>("EVENT_CONTEXT:ICON_IDS");
+            Int16[] colours = GetParameter<Int16[]>("EVENT_CONTEXT:COLOURS");
+        }
+
+        private void ReadEvents()
+        {
+            if (!_nameToGroups.ContainsKey("EVENT")) {
+                return; // There are no events in the C3D file
+            }
+
+            Int16 contextLength = GetParameter<Int16>("EVENT:USED");
+            string[] contexts = GetParameter<string[]>("EVENT:CONTEXTS");
+            string[] labels = GetParameter<string[]>("EVENT:LABELS");
+            string[] descriptions = GetParameter<string[]>("EVENT:DESCRIPTIONS");
+            string[] subjects = GetParameter<string[]>("EVENT:SUBJECTS");
+            float[,] times = GetParameter<float[,]>("EVENT:TIMES");
+            Int16[] icon_ids = GetParameter<Int16[]>("EVENT:ICON_IDS");
+            byte[] generic_flags = GetParameter<byte[]>("EVENT:GENERIC_FLAGS");
+
+            for (int i = 0; i < labels.Length; i++)
+            {
+                float time = times[0, i] * 60 + times[1, i];
+                int frame = Int32.Parse((time * _header.FrameRate).ToString());
+
+                C3dEvent c3dEvent = new C3dEvent(labels[i], contexts[i], frame);
+                c3dEvent.Description = descriptions[i];
+                c3dEvent.Subject = subjects[i];
+                c3dEvent.IconId = icon_ids[i];
+                c3dEvent.GenericFlag = generic_flags[i];
+
+                _events.Add(c3dEvent);
+            }
+        }
+
+        #endregion read event
 
         public bool Close()
         {

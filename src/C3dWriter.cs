@@ -95,6 +95,44 @@ namespace Vub.Etro.IO
 
             SetDefaultParametrs();
         }
+
+        public C3dWriter(C3dReader copyMetadataFrom, bool eventsEnabled = false) : this(eventsEnabled) 
+        {
+            _header.SetHeader(copyMetadataFrom.Header.GetRawData());
+            
+            foreach (Parameter p in copyMetadataFrom.AllParameters) {
+                string groupName = copyMetadataFrom.GetGroupName(p);
+                CreateGroupIfNotExist(groupName);
+
+                ParameterGroup grp = _nameToGroups[groupName];
+
+                if (!grp.HasParameter(p.Name))
+                {
+                    Parameter newParam = p.Clone();
+                    if (_fs == null)
+                    {
+                        grp.Parameters.Add(newParam);
+                    }
+                    else
+                    {
+                        throw new ApplicationException("Cannot create a parameter " + newParam.Name + " after file was open.");
+                    }
+                }
+                else {
+                    Parameter param = grp.GetParameter(p.Name);
+                    param.CopyDataFrom(p);
+                }
+
+                // if file is open and we are modifieng an existig an parameter - update changes.
+                if (_fs != null && p.OffsetInFile > 0)
+                {
+                    UpdateParameter(p);
+                }
+
+
+            }
+            
+        }
         
         ~C3dWriter() {
             if (_fs != null) {
@@ -268,7 +306,7 @@ namespace Vub.Etro.IO
         {
             SetParameter<Int16>("POINT:DATA_START", (Int16)2);
 
-            _header.NumberOfPoints = 21;
+            _header.NumberOfPoints = 25;//21;
             SetParameter<Int16>("POINT:USED", (Int16)_header.NumberOfPoints);
 
             _header.LastSampleNumber = 0;
@@ -295,6 +333,27 @@ namespace Vub.Etro.IO
         }
 
         private sbyte _nextGroupId = -1;
+
+        private void CreateGroupIfNotExist(string element)
+        {
+            if (!_nameToGroups.ContainsKey(element))
+            {
+                if (_fs == null)
+                {
+                    ParameterGroup group = new ParameterGroup();
+                    group.Id = _nextGroupId--;
+                    group.Name = element;
+                    _nameToGroups.Add(group.Name, group);
+                    _idToGroups.Add(group.Id, group);
+                }
+                else
+                {
+                    throw new ApplicationException("Cannot create a parameter group " + element + " after file was open.");
+                }
+
+            }
+        }
+
         public void SetParameter<T>(string path, T parameterValue)
         {
             string[] elements = path.Split(':');
@@ -303,22 +362,7 @@ namespace Vub.Etro.IO
                 throw new ApplicationException("Wrong path format (use GROUP:PARAMETER)");
             }
 
-            if (!_nameToGroups.ContainsKey(elements[0]))
-            {
-                if (_fs == null)
-                {
-                    ParameterGroup group = new ParameterGroup();
-                    group.Id = _nextGroupId--;
-                    group.Name = elements[0];
-                    _nameToGroups.Add(group.Name, group);
-                    _idToGroups.Add(group.Id, group);
-                }
-                else
-                {
-                    throw new ApplicationException("Cannot create a parameter group " + elements[0] + " after file was open.");
-                }
-
-            }
+            CreateGroupIfNotExist(elements[0]);
 
             ParameterGroup grp = _nameToGroups[elements[0]];
 

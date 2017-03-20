@@ -177,8 +177,10 @@ namespace Vub.Etro.IO
             return null;
         }
 
-        internal void ResetOffsetInFile() {
-            foreach (Parameter p in _parameters) {
+        internal void ResetOffsetInFile()
+        {
+            foreach (Parameter p in _parameters)
+            {
                 p.ResetOffsetInFile();
             }
         }
@@ -210,6 +212,19 @@ namespace Vub.Etro.IO
             }
         }
 
+        public Type ParamType
+        {
+            get
+            {
+                return GetType(this._paramType);
+            }
+        }
+
+        public int[] Dimensions
+        {
+            get { return _dimensions; }
+        }
+
         public Parameter(BinaryReader reader)
         {
             long position = reader.BaseStream.Position;
@@ -236,6 +251,20 @@ namespace Vub.Etro.IO
 
         }
 
+        internal Parameter Clone() {
+            Parameter p = new Parameter();
+            p.Id = this.Id;
+            p.Name = this.Name;
+            p.Description = this.Description;
+            p._dimensions = (int[])this._dimensions.Clone();
+            p._vectorData = (byte[])this._vectorData.Clone();
+            p._paramType = this._paramType;
+            p._length = this._length;
+            p.IsScalar = this.IsScalar;
+            p._C3DParameterSize = this._C3DParameterSize;
+            return p;
+        }
+
         private void ReadMatrix(BinaryReader reader, Type t, int dimensions)
         {
             _length = 1;
@@ -255,6 +284,8 @@ namespace Vub.Etro.IO
         private void ReadScalar(BinaryReader reader, Type t)
         {
             _vectorData = new byte[GetSize(_paramType)];
+            _dimensions = new int[] { };
+            _length = 0;
             reader.Read(_vectorData, 0, GetSize(_paramType));
             // TODO
         }
@@ -397,7 +428,7 @@ namespace Vub.Etro.IO
                 for (int y = 0; y < dim2; y++)
                     for (int x = 0; x < dim1; x++)
                     {
-                        float f = ((float[,])(object)data)[x,y];
+                        float f = ((float[,])(object)data)[x, y];
                         Array.Copy(BitConverter.GetBytes(f), 0, _vectorData, offset * GetSize(_paramType), GetSize(_paramType));
                         offset++;
                     }
@@ -523,6 +554,10 @@ namespace Vub.Etro.IO
             //
             // 2D Arrays
             //
+            else if (typeof(T) == typeof(float[,]))
+            {
+                ret = (T)(object)Get2DArray<float>();
+            }
             // TODO: DO IT IF YOU NEED IT :)
             //
             //    else if (typeof(T) == typeof(Int16 [,]))
@@ -620,6 +655,14 @@ namespace Vub.Etro.IO
                 case 4:  return 4;
                 default: throw new ApplicationException("Unknown data type of c3d parameter");
             }
+        }
+
+        internal void CopyDataFrom(Parameter p) {
+            if (_vectorData.Length != p._vectorData.Length) {
+                throw new ApplicationException("Unable to copy data from parameters of different length");
+            }
+            p._vectorData.CopyTo(this._vectorData,0);
+            
         }
     }
     #endregion Parameter
