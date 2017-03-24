@@ -354,6 +354,17 @@ namespace Vub.Etro.IO
             }
         }
 
+        private void CheckRequiredParameters<T>(string[] elements, T parameterValue)
+        {
+            if (elements[0] == "POINT" && elements[1] == "LABELS") {
+                if (typeof(T) != typeof(string[])) {
+                    throw new ApplicationException("ERROR: Parameter POINT:LABELS has to be a string array!");
+                }
+                _header.NumberOfPoints = (Int16)((string[])((object)parameterValue)).Length;
+                SetParameter<Int16>("POINT:USED", (Int16)_header.NumberOfPoints);
+            }
+        }
+
         public void SetParameter<T>(string path, T parameterValue)
         {
             string[] elements = path.Split(':');
@@ -363,6 +374,8 @@ namespace Vub.Etro.IO
             }
 
             CreateGroupIfNotExist(elements[0]);
+
+            CheckRequiredParameters<T>(elements, parameterValue);
 
             ParameterGroup grp = _nameToGroups[elements[0]];
 
