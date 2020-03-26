@@ -18,20 +18,21 @@ using System.IO;
 namespace Vub.Etro.IO
 {
 
-#if !SKIP_VECTOR3
+#if !SKIP_VECTOR4
     #region 3D point representation
 
 
-    public struct Vector3
+    public struct Vector4
     {
-        public Vector3(float x, float y, float z)
+        public Vector4(float x, float y, float z, float w)
         {
             this.X = x;
             this.Y = y;
             this.Z = z;
+            this.W = w;
         }
 
-        public float X, Y, Z;
+        public float X, Y, Z, W;
     }
 
     #endregion

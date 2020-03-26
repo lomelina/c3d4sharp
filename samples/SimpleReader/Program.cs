@@ -29,10 +29,10 @@ namespace SimpleReader
                 for (int i = 0; i < /*reader.GetParameter<Int16>("POINT:FRAMES")*/ 100000; i++)
                 {
                     // returns an array of all points, it is necessary to call this method in each cycle
-                    Vector3[] array = reader.ReadFrame();
+                    Vector4[] array = reader.ReadFrame();
                     //Vector3 e = reader["Spine"];
                     // we can ask for specific point - you can check labels in reader.Labels
-                    Vector3 spine = array[1];
+                    Vector4 spine = array[1];
 
                     // get analog data for this frame
                     //float value = reader.AnalogData["Fx1", 0 /* from 0 to reader.AnalogChannels*/];

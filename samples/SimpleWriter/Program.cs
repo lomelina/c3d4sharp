@@ -48,7 +48,7 @@ namespace SimpleWriter
         //  Let's declare data variables that we'll use to write data to a file
         //
         static Int16[] analogData = null;
-        static Vector3[] pointData = null;
+        static Vector4[] pointData = null;
 
         static void Main(string[] args)
         {
@@ -112,26 +112,26 @@ namespace SimpleWriter
             writer.SetParameter<Int16>("INFO:SCORE", 0);
             writer.SetParameter<float>("ANALOG:RATE", 30);
             writer.PointsCount = (short)(((int)SkeletonMarkers.Count) + angleLabels.Length + qualityLabels.Length);
-            pointData = new Vector3[writer.PointsCount];
+            pointData = new Vector4[writer.PointsCount];
 
             writer.Open("datafile.c3d");
 
             for (int i = 0; i < (int)SkeletonMarkers.Count - 1; i++)
             {
-                pointData[i] = new Vector3(1, 2, 3);
+                pointData[i] = new Vector4(1, 2, 3,0);
             }
 
             
             for (int i = 0; i < (int)SkeletonMarkers.Count - 1; i++)
             {
 
-                pointData[i + (int)SkeletonMarkers.Count - 1] = new Vector3(4, 5, 6);
+                pointData[i + (int)SkeletonMarkers.Count - 1] = new Vector4(4, 5, 6,0);
             }
 
             for (int i = 0; i < (int)SkeletonMarkers.Count - 1; i++)
             {
 
-                pointData[i + 2 * (int)SkeletonMarkers.Count] = new Vector3(7, 8, 9);
+                pointData[i + 2 * (int)SkeletonMarkers.Count] = new Vector4(7, 8, 9,0);
             }
             SetAnalogData();
 

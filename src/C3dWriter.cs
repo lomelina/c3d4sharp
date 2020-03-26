@@ -152,7 +152,7 @@ namespace Vub.Etro.IO
             try
             {
                 //PrepareEvents();
-                _fs = new FileStream(_eventsEnabled? GetTempFile(_c3dFile) : _c3dFile, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+                _fs = new FileStream(_eventsEnabled? GetTempFile(_c3dFile) : _c3dFile, FileMode.OpenOrCreate);
                 _writer = new BinaryWriter(_fs);
             
                 WriteHeader();
@@ -220,7 +220,7 @@ namespace Vub.Etro.IO
 
             for (int i = 0; i < reader.FramesCount; i++) 
             {
-                Vector3 [] points = reader.ReadFrame();
+                Vector4 [] points = reader.ReadFrame();
                 if(reader.IsFloat) {
                     this.WriteFloatFrame(points);
                 }
@@ -474,7 +474,7 @@ namespace Vub.Etro.IO
             SetParameter<byte[]>("EVENT:GENERIC_FLAGS", generic_flags);
         }
 
-        public void WriteFloatFrame(Vector3[] data)
+        public void WriteFloatFrame(Vector4[] data)
         {
             _header.LastSampleNumber++;
             for (int i = 0; i < data.Length; i++)
@@ -491,7 +491,7 @@ namespace Vub.Etro.IO
 
 
 
-        public void WriteIntFrame(Vector3[] data)
+        public void WriteIntFrame(Vector4[] data)
         {
             _header.LastSampleNumber++;
             for (int i = 0; i < data.Length; i++)
@@ -499,9 +499,7 @@ namespace Vub.Etro.IO
                 _writer.Write((Int16)data[i].X);
                 _writer.Write((Int16)data[i].Y);
                 _writer.Write((Int16)data[i].Z);
-
-                // TODO
-                _writer.Write((Int16)0);
+                _writer.Write((Int16)data[i].W);
 
             }
         }

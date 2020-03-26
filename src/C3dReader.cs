@@ -15,7 +15,7 @@ using System.Linq;
 using System.Text;
 using System.IO;
 
-#if SKIP_VECTOR3
+#if SKIP_Vector4
     using Microsoft.Xna.Framework;
 #endif
 
@@ -65,8 +65,8 @@ namespace Vub.Etro.IO
         public AnalogDataArray AnalogData { get { return _analogData; } }
         public int AnalogChannels { get { return (int)(_analogRate / _pointRate); } }
 
-        public Vector3[] _points = null;
-        public Vector3[] Points { get { return _points; } }
+        public Vector4[] _points = null;
+        public Vector4[] Points { get { return _points; } }
 
         private int _pointFrames = 0;
         public int FramesCount { get { return _pointFrames; } }
@@ -285,9 +285,9 @@ namespace Vub.Etro.IO
 
 
 
-        public Vector3[] ReadFrame()
+        public Vector4[] ReadFrame()
         {
-            Vector3[] data;
+            Vector4[] data;
             if (_fs == null)
             {
                 throw new ApplicationException("The C3d file is not open. Open the file before reading.");
@@ -306,20 +306,21 @@ namespace Vub.Etro.IO
             return data;
         }
 
-        private Vector3[] ReadFloatData()
+        private Vector4[] ReadFloatData()
         {
             if (!IsFloat)
                 throw new ApplicationException("Data stored in C3D file are in Inetger format. You are trying to read it as a Floating-point format.");
 
-            _points = new Vector3[_pointsNumber];
+            _points = new Vector4[_pointsNumber];
             for (int i = 0; i < _pointsNumber; i++)
             {
-                _points[i] = new Vector3(
+                _points[i] = new Vector4(
                     /* float x = */ _reader.ReadSingle(),
                     /* float y = */ _reader.ReadSingle(),
-                    /* float z = */ _reader.ReadSingle()
+                    /* float z = */ _reader.ReadSingle(),
+                    /* float w = */ _reader.ReadSingle()
                 );
-                int cc = (int)_reader.ReadSingle();
+                
             }
 
 
@@ -342,20 +343,21 @@ namespace Vub.Etro.IO
             return _points;
         }
 
-        private Vector3[] ReadIntData()
+        private Vector4[] ReadIntData()
         {
             if (!IsInterger)
                 throw new ApplicationException("Data stored in C3D file are in Floating-point format. You are trying to read it as a Integer format.");
 
-            _points = new Vector3[_pointsNumber];
+            _points = new Vector4[_pointsNumber];
             for (int i = 0; i < _pointsNumber; i++)
             {
-                _points[i] = new Vector3(
+                _points[i] = new Vector4(
                     /* float x = */ _reader.ReadInt16() * _pointScale,
                     /* float y = */ _reader.ReadInt16() * _pointScale,
-                    /* float z = */ _reader.ReadInt16() * _pointScale
+                    /* float z = */ _reader.ReadInt16() * _pointScale,
+                    /* float w = */ _reader.ReadInt16() * _pointScale
                 );
-                int cc = _reader.ReadInt16();
+                
             }
 
             // reading of analog data
@@ -376,7 +378,7 @@ namespace Vub.Etro.IO
             return _points;
         }
 
-        public Vector3 this[int key]
+        public Vector4 this[int key]
         {
             get
             {
@@ -392,7 +394,7 @@ namespace Vub.Etro.IO
             }
         }
 
-        public Vector3 this[string key]
+        public Vector4 this[string key]
         {
             get
             {
