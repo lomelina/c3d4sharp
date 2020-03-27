@@ -52,10 +52,39 @@ namespace SimpleWriter
 
         static void Main(string[] args)
         {
+            string[] labels = Enum.GetNames(typeof(SkeletonMarkers));
+            labels = ArrayCopyHelper.SubArray<string>(labels, 0, labels.Length - 1);
+
+            string[] angleLabels = new string[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                angleLabels[i] = labels[i] + "Angle";
+            }
+            string[] qualityLabels = new string[labels.Length];
+            for (int i = 0; i < labels.Length; i++)
+            {
+                qualityLabels[i] = labels[i] + "Quality";
+            }
+
+            labels = labels.Union<string>(angleLabels).Union<string>(qualityLabels).ToArray<string>();
+
+            string[] analogLabels = new string[] {
+                "year      ",
+                "month     ",
+                "day       ",
+                "hour      ",
+                "minute    ",
+                "second    ",
+                "milisecond"};
+
+
+            pointData = new Vector4[labels.Length];
+            analogData = new Int16[analogLabels.Length];
+
             //
             //  Create C3dWriter with events enabled
             //
-            C3dWriter writer = new C3dWriter(true);
+            C3dWriter writer = new C3dWriter(labels, 30, analogLabels, 1, true);
             
             
             // fill custom parameters in the C3D file
@@ -64,56 +93,15 @@ namespace SimpleWriter
                 "Accelerometer",
                 "BalanceBoard"
             });
-            writer.Header.AnalogChannels = (short)(7);
-            analogData = new Int16[writer.Header.AnalogChannels];
-            writer.Header.AnalogSamplesPerFrame = 1;
+
+            writer.SetParameter<Int16>("POINT:DATA_TYPE", 0);
+
             writer.SetParameter<string>("SUBJECTS:MARKER_SET", "Using ETRO extended marker set");
             writer.SetParameter<string>("INFO:SYSTEM", "ETRO_APP");
             writer.SetParameter<string>("INFO:EVENT", "test");
             writer.SetParameter<string>("INFO:GAME", "C3D TEST");
             
-            //
-            // If you want to have (per frame) analog data fill ANALOG:USED and ANALOG:LABELS
-            // (See the c3d specification for more details)
-            //
-            // Note: Here we use Analog data to store per frame time. It is very inefficient, but it's just for demonstration 
-            //       (normaly time shold be infered from the AnalogRate in the header)
-            //
-            writer.SetParameter<Int16>("ANALOG:USED", writer.Header.AnalogChannels);
-            string[] alabels = new string[] { 
-                "year      ", 
-                "month     ",
-                "day       ",
-                "hour      ", 
-                "minute    ",
-                "second    ",
-                "milisecond"};
-            writer.SetParameter<string[]>("ANALOG:LABELS", alabels.ToArray<string>());
-
-            //
-            //  We create our labels
-            //
-            string[] labels = Enum.GetNames(typeof(SkeletonMarkers));
-            labels = ArrayCopyHelper.SubArray<string>(labels, 0, labels.Length - 1);
-
-            string[] angleLabels = new string[labels.Length];
-            for (int i = 0; i < labels.Length; i++)
-            {
-                angleLabels[i] = labels[i];
-            }
-            string[] qualityLabels = new string[labels.Length];
-            for (int i = 0; i < labels.Length; i++)
-            {
-                qualityLabels[i] = labels[i] + "Quality";
-            }
-
-            writer.SetParameter<string[]>("POINT:LABELS", labels.Union<string>(angleLabels).Union<string>(qualityLabels).ToArray<string>());
-            writer.SetParameter<Int16>("POINT:DATA_TYPE", 0);
             writer.SetParameter<Int16>("INFO:SCORE", 0);
-            writer.SetParameter<float>("ANALOG:RATE", 30);
-            writer.PointsCount = (short)(((int)SkeletonMarkers.Count) + angleLabels.Length + qualityLabels.Length);
-            pointData = new Vector4[writer.PointsCount];
-
             writer.Open("datafile.c3d");
 
             for (int i = 0; i < (int)SkeletonMarkers.Count - 1; i++)

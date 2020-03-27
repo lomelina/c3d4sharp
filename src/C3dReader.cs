@@ -183,13 +183,13 @@ namespace Vub.Etro.IO
 #if DEBUG
             Console.WriteLine("\tFirstWord: {0:X}", Header.FirstWord);
             Console.WriteLine("\tNumber of 3D points: " + Header.NumberOfPoints);
-            Console.WriteLine("\tAnalog channels: " + Header.AnalogChannels);
+            Console.WriteLine("\tAnalog channels: " + Header.AnalogMeasurementsPerFrame);
 
             Console.WriteLine("\tFirst sample number: " + Header.FirstSampleNumber);
             Console.WriteLine("\tLast sample number: " + Header.LastSampleNumber);
             Console.WriteLine("\tScale factor: " + Header.ScaleFactor);
             Console.WriteLine("\tData start: " + Header.DataStart);
-            Console.WriteLine("\tAnalog samples per frame: " + Header.AnalogSamplesPerFrame);
+            Console.WriteLine("\tAnalog samples per frame: " + Header.AnalogSamplingRate);
             Console.WriteLine("\tFrame rate: " + Header.FrameRate);
 #endif
         }

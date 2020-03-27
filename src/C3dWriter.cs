@@ -51,7 +51,9 @@ namespace Vub.Etro.IO
         private BinaryWriter _writer = null;
         private Dictionary<string, ParameterGroup> _nameToGroups;
         private Dictionary<int, ParameterGroup> _idToGroups;
-        
+
+        private HashSet<string> _readOnlyParameters;
+
         private int _dataStartOffset;
         private int _pointFramesOffset;
         
@@ -74,10 +76,6 @@ namespace Vub.Etro.IO
         public Int16 PointsCount
         {
             get { return _header.NumberOfPoints; }
-            set
-            {
-                _header.NumberOfPoints = value;
-            }
         }
 
         private C3dHeader _header = null;
@@ -85,18 +83,33 @@ namespace Vub.Etro.IO
 
         #endregion Properties
 
-        public C3dWriter(bool eventsEnabled = false)
+        public C3dWriter(string [] pointNames, float expectedFrameRate, string [] analogChannelNames = null, Int16 analogSamplesPerFrame = 0, bool eventsEnabled = false)
         {
+            if (analogSamplesPerFrame * analogChannelNames.Length >= Int16.MaxValue) {
+                throw new ApplicationException("Analog section is too big for C3D file. Reduce amount of channels or samples per frame");
+            }
+
             _eventsEnabled = eventsEnabled;
             _nameToGroups = new Dictionary<string, ParameterGroup>();
             _idToGroups = new Dictionary<int, ParameterGroup>();
+            _readOnlyParameters = new HashSet<string>();
             _pointsLabels = new List<string>();
-            _header = new C3dHeader();
+            _header = new C3dHeader(    
+                (Int16)pointNames.Length,
+                (Int16)(analogChannelNames.Length * analogSamplesPerFrame),
+                analogSamplesPerFrame);
+            _header.FrameRate = expectedFrameRate;
 
-            SetDefaultParametrs();
+            SetDefaultParametrs(pointNames, analogChannelNames);
         }
 
-        public C3dWriter(C3dReader copyMetadataFrom, bool eventsEnabled = false) : this(eventsEnabled) 
+        public C3dWriter(C3dReader copyMetadataFrom, bool eventsEnabled = false)
+            : this(
+                  copyMetadataFrom.Labels.ToArray<string>(),
+                  copyMetadataFrom.Header.FrameRate,
+                  copyMetadataFrom.AnalogLabels.ToArray<string>(),
+                  copyMetadataFrom.Header.AnalogSamplingRate,
+                  eventsEnabled) 
         {
             _header.SetHeader(copyMetadataFrom.Header.GetRawData());
             
@@ -141,7 +154,7 @@ namespace Vub.Etro.IO
         }
 
         private static string GetTempFile(string file){
-            return Path.GetDirectoryName(file) + "/~tmp." + Path.GetFileName(file);
+            return new FileInfo(file).Directory.FullName + "/~tmp." + Path.GetFileName(file);
         }
 
         public bool Open(string c3dFile)
@@ -215,7 +228,9 @@ namespace Vub.Etro.IO
             
             _eventsEnabled = false;
             C3dReader reader = new C3dReader();
-            reader.Open(GetTempFile(_c3dFile));
+            if (!reader.Open(GetTempFile(_c3dFile))) {
+                throw new ApplicationException("Could not open temporary file " + GetTempFile(_c3dFile) + "!" );
+            }
             Open(_c3dFile);
 
             for (int i = 0; i < reader.FramesCount; i++) 
@@ -266,7 +281,6 @@ namespace Vub.Etro.IO
                  ) / ParameterModel.BLOCK_SIZE)
                  + 2; // 1 because we are counting from zero and 1 because we want to point on to the next block
 
-
             SetParameter<Int16>("POINT:DATA_START", (Int16)dataStart);
 
             long position = _writer.BaseStream.Position;
@@ -302,12 +316,15 @@ namespace Vub.Etro.IO
             _writePos += 512;
         }
 
-        private void SetDefaultParametrs()
+        private void SetDefaultParametrs(string[] pointNames, string[] analogChannelNames)
         {
-            SetParameter<Int16>("POINT:DATA_START", (Int16)2);
-
-            _header.NumberOfPoints = 25;//21;
+            // _header.NumberOfPoints is filled via constructor of header and should not change once the writer is created
             SetParameter<Int16>("POINT:USED", (Int16)_header.NumberOfPoints);
+
+            SetParameter<string[]>("POINT:LABELS",
+                pointNames == null ? new string[] { } : pointNames);
+            
+            SetParameter<float>("POINT:RATE", _header.FrameRate);
 
             _header.LastSampleNumber = 0;
             SetParameter<Int16>("POINT:FRAMES", (Int16)_header.LastSampleNumber);
@@ -315,21 +332,35 @@ namespace Vub.Etro.IO
             _header.ScaleFactor = 1f;
             SetParameter<float>("POINT:SCALE", _header.ScaleFactor);
 
-            _header.FrameRate = 30;
-            SetParameter<float>("POINT:RATE", _header.FrameRate);
+            SetParameter<Int16>("POINT:DATA_START", (Int16)2);
 
-            _header.AnalogSamplesPerFrame = 0;
-            SetParameter<float>("ANALOG:RATE", _header.AnalogSamplesPerFrame);
+            // _header.AnalogMeasurementsPerFrame is filled via constructor of header and should not change once the writer is created
+            SetParameter<Int16>("ANALOG:USED", (Int16)analogChannelNames.Length);
 
-            _header.AnalogChannels = 0;
-            SetParameter<Int16>("ANALOG:USED", (Int16)_header.AnalogChannels);
+            SetParameter<string[]>("ANALOG:LABELS",
+                analogChannelNames == null ? new string[] { } : analogChannelNames);
 
-            SetParameter<float[]>("ANALOG:SCALE", new float[] { });
+            // _header.AnalogSamplingRate is filled via constructor of header and should not change once the writer is created
+            SetParameter<float>("ANALOG:RATE", _header.AnalogSamplingRate * _header.FrameRate);
+
+
+            float[] scales = Enumerable.Repeat(1f, analogChannelNames.Length).ToArray();
+            SetParameter<float[]>("ANALOG:SCALE", scales);
 
             SetParameter<float>("ANALOG:GEN_SCALE", 1);
 
-            SetParameter<Int16[]>("ANALOG:OFFSET", new Int16[] { });
+            Int16[] offsets = new Int16[analogChannelNames.Length];
+            Array.Clear(offsets, 0, offsets.Length);
+            SetParameter<Int16[]>("ANALOG:OFFSET", offsets);
 
+            // Lock read only parameters
+            _readOnlyParameters.Add("POINT:USED");
+            _readOnlyParameters.Add("POINT:LABELS");
+            _readOnlyParameters.Add("POINT:RATE");
+
+            _readOnlyParameters.Add("ANALOG:USED");
+            _readOnlyParameters.Add("ANALOG:LABELS");
+            _readOnlyParameters.Add("ANALOG:RATE");
         }
 
         private sbyte _nextGroupId = -1;
@@ -354,16 +385,6 @@ namespace Vub.Etro.IO
             }
         }
 
-        private void CheckRequiredParameters<T>(string[] elements, T parameterValue)
-        {
-            if (elements[0] == "POINT" && elements[1] == "LABELS") {
-                if (typeof(T) != typeof(string[])) {
-                    throw new ApplicationException("ERROR: Parameter POINT:LABELS has to be a string array!");
-                }
-                _header.NumberOfPoints = (Int16)((string[])((object)parameterValue)).Length;
-                SetParameter<Int16>("POINT:USED", (Int16)_header.NumberOfPoints);
-            }
-        }
 
         public void SetParameter<T>(string path, T parameterValue)
         {
@@ -373,9 +394,11 @@ namespace Vub.Etro.IO
                 throw new ApplicationException("Wrong path format (use GROUP:PARAMETER)");
             }
 
-            CreateGroupIfNotExist(elements[0]);
+            if (_readOnlyParameters.Contains(path)) { 
+                throw new ApplicationException("Cannot change parameter " + path + " because it is read only!");
+            }
 
-            CheckRequiredParameters<T>(elements, parameterValue);
+            CreateGroupIfNotExist(elements[0]);
 
             ParameterGroup grp = _nameToGroups[elements[0]];
 
@@ -506,11 +529,11 @@ namespace Vub.Etro.IO
 
         public void WriteFloatAnalogData(float[] data_channels)
         {
-            if (data_channels.Length != _header.AnalogChannels)
-            {
-                throw new ApplicationException(
-                "Number of channels in data has to be the same as it is declared in header and parameters' section");
-            }
+            //if (data_channels.Length != _header.AnalogChannels)
+            //{
+            //    throw new ApplicationException(
+            //    "Number of channels in data has to be the same as it is declared in header and parameters' section");
+            //}
 
             for (int i = 0; i < data_channels.Length; i++)
             {
@@ -520,11 +543,11 @@ namespace Vub.Etro.IO
 
         public void WriteIntAnalogData(Int16[] data_channels)
         {
-            if (data_channels.Length != _header.AnalogChannels)
-            {
-                throw new ApplicationException(
-                "Number of channels in data has to be the same as it is declared in header and parameters' section");
-            }
+            //if (data_channels.Length != _header.AnalogChannels)
+            //{
+            //    throw new ApplicationException(
+            //    "Number of channels in data has to be the same as it is declared in header and parameters' section");
+            //}
 
             for (int i = 0; i < data_channels.Length; i++)
             {
